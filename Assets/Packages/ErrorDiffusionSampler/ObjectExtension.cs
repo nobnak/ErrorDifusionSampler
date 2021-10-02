@@ -14,5 +14,8 @@ namespace ErrorDiffusionSamplerSys {
             else
                 Object.DestroyImmediate(obj);
         }
+        public static void Destroy(this Transform obj) {
+            if (obj != null) obj.gameObject.Destroy();
+        }
     }
 }

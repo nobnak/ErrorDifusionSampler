@@ -5,6 +5,8 @@ Shader "Unlit/ColoredTexture" {
     }
     SubShader  {
         Tags { "RenderType"="Opaque" }
+        Cull Off
+        Blend SrcAlpha OneMinusSrcAlpha
 
         Pass {
             CGPROGRAM

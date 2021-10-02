@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-[ExecuteAlways]
 public class TestErrorDiffusion : MonoBehaviour {
 
     [SerializeField]
@@ -14,60 +13,62 @@ public class TestErrorDiffusion : MonoBehaviour {
     [SerializeField]
     protected Tuner tuner = new Tuner();
 
-    protected bool valid;
-    protected Texture2D dst;
+    protected Validator valid = new Validator();
+    protected List<Transform> polls = new List<Transform>();
 
     #region member
 
     #region unity
+    private void OnEnable() {
+        valid.Validation += () => {
+            if (link.source == null || !link.source.isReadable) return;
+            events?.InputOnUpdate?.Invoke(link.source);
+
+            var gen = link.source.Generate(tuner.samples, tuner.density, tuner.sampleMode, tuner.colorIndex);
+
+            ClearPolls();
+            foreach (var s in gen.samples) {
+                var uv = gen.UV(s);
+                var pos = link.destination.TransformPoint(new Vector3(uv.x - 0.5f, uv.y - 0.5f));
+                var poll = Instantiate(link.pollfab);
+                poll.gameObject.hideFlags = HideFlags.HideAndDontSave;
+                poll.SetParent(link.pollparent != null ? link.pollparent : transform);
+                poll.localRotation = Quaternion.identity;
+                poll.position = pos;
+                var c = link.source.GetPixelBilinear(uv.x, uv.y);
+                poll.localScale *= c[(int)tuner.colorIndex];
+                polls.Add(poll);
+            }
+        };
+    }
     private void OnValidate() {
-        valid = false;
+        valid.Invalidate();
     }
     private void OnDisable() {
-        dst.Destroy();
+        valid.Reset();
+        ClearPolls();
     }
     private void Update() {
-        Validate();
+        valid.Validate();
     }
     #endregion
 
-    protected virtual void Validate() {
-        if (valid) return;
-        valid = true;
-
-        events.InputOnUpdate?.Invoke(link.source);
-        if (link.source == null || !link.source.isReadable) return;
-
-        dst.Destroy();
-
-        var gen = link.source.Generate(tuner.samples, tuner.density, tuner.sampleMode, tuner.colorIndex);
-        dst = CreateDestinationTexture(gen.size, Color.black);
-        foreach (var s in gen.samples)
-            dst.SetPixel(s.x, s.y, Color.white);
-        dst.Apply();
-
-        events.OutputOnUpdate.Invoke(dst);
-    }
-    public static Texture2D CreateDestinationTexture(Vector2Int size, Color initialColor) {
-        var dst = new Texture2D(size.x, size.y);
-        dst.filterMode = FilterMode.Point;
-        dst.wrapMode = TextureWrapMode.Clamp;
-        for (var y = 0; y < size.y; y++)
-            for (var x = 0; x < size.x; x++)
-                dst.SetPixel(x, y, initialColor);
-        dst.Apply();
-        return dst;
+    private void ClearPolls() {
+        foreach (var p in polls) p.Destroy();
+        polls.Clear();
     }
     #endregion
 
     [System.Serializable]
     public class Events {
         public UnityEvent<Texture> InputOnUpdate = new UnityEvent<Texture>();
-        public UnityEvent<Texture> OutputOnUpdate = new UnityEvent<Texture>();
     }
     [System.Serializable]
     public class Link {
         public Texture2D source;
+        public Transform destination;
+        public Transform pollparent;
+        public Transform pollfab;
     }
     [System.Serializable]
     public class Tuner {

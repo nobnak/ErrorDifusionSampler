@@ -106,6 +106,10 @@ namespace ErrorDiffusionSamplerSys {
             }
             public Generator() : this(Vector2Int.zero, NullSampler()) { }
 
+            public Vector2 UV(int x, int y)
+                => new Vector2((x + 0.5f) / size.x, (y + 0.5f) / size.y);
+            public Vector2 UV((int x, int y) v) => UV(v.x, v.y);
+
             public static IEnumerable<(int x, int y)> NullSampler() {
                 yield break;
             }

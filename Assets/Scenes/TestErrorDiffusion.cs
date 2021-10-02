@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
+[ExecuteAlways]
 public class TestErrorDiffusion : MonoBehaviour {
 
     [SerializeField]
@@ -34,23 +35,28 @@ public class TestErrorDiffusion : MonoBehaviour {
         if (valid) return;
         valid = true;
 
-        events.InputOnUpdate.Invoke(link.source);
+        events.InputOnUpdate?.Invoke(link.source);
         if (link.source == null || !link.source.isReadable) return;
 
         dst.Destroy();
-        dst = new Texture2D(link.source.width, link.source.height);
-        dst.filterMode = FilterMode.Point;
-        dst.wrapMode = TextureWrapMode.Clamp;
 
-        var samples = link.source.Generate(tuner.density);
-        var colors = dst.GetPixels();
-        System.Array.Clear(colors, 0, colors.Length);
-        dst.SetPixels(colors);
-        foreach (var s in samples)
+        var gen = link.source.Generate(tuner.samples, tuner.density, tuner.sampleMode, tuner.colorIndex);
+        dst = CreateDestinationTexture(gen.size, Color.black);
+        foreach (var s in gen.samples)
             dst.SetPixel(s.x, s.y, Color.white);
         dst.Apply();
 
         events.OutputOnUpdate.Invoke(dst);
+    }
+    public static Texture2D CreateDestinationTexture(Vector2Int size, Color initialColor) {
+        var dst = new Texture2D(size.x, size.y);
+        dst.filterMode = FilterMode.Point;
+        dst.wrapMode = TextureWrapMode.Clamp;
+        for (var y = 0; y < size.y; y++)
+            for (var x = 0; x < size.x; x++)
+                dst.SetPixel(x, y, initialColor);
+        dst.Apply();
+        return dst;
     }
     #endregion
 
@@ -65,7 +71,11 @@ public class TestErrorDiffusion : MonoBehaviour {
     }
     [System.Serializable]
     public class Tuner {
+        [Range(100, 1000000)]
+        public int samples = 100;
         [Range(0.01f, 1f)]
         public float density = 0.1f;
+        public ColorIndex colorIndex = ColorIndex.R;
+        public ErrorDiffusion.SampleMode sampleMode = default;
     }
 }

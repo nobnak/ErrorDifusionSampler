@@ -8,6 +8,8 @@ namespace ErrorDiffusionSamplerSys {
     // https://en.wikipedia.org/wiki/Error_diffusion
     public static class ErrorDiffusion {
 
+        public enum SampleMode { Fixed = 0, Relative }
+
         public delegate float GetColor(Vector2 uv);
 
         public const float THRESHOLD = 0.5f;
@@ -23,21 +25,43 @@ namespace ErrorDiffusionSamplerSys {
             NJJN = JJN.Select(v => (v.x, v.y, v.v * inv_sum)).ToArray();
         }
 
-
+        #region interface
         public static Vector2 UV(this Vector2 dx, int x, int y)
             => new Vector2(dx.x * (x + 0.5f), dx.y * (y + 0.5f));
 
-        public static IEnumerable<(int x, int y)> Generate(
+        public static Generator Generate(
             this Texture2D src, 
+            int count,
             float density,
+            SampleMode sampleMode = SampleMode.Fixed,
+            ColorIndex colorIndex = ColorIndex.R,
             bool linear = false) {
 
-            var size = new Vector2Int(src.width, src.height);
+            var colors = src.GetPixels().AsEnumerable();
+            if (!linear) colors = colors.Select(v => v.linear);
+            var m = new Moment();
+            m.Add(colors.Select(v => v[(int)colorIndex]));
+
+            if (m.Sum < 1f) return new Generator();
+            float npixels;
+            switch (sampleMode) {
+                default:
+                    npixels = (float)count / (m.Average * density);
+                    break;
+                case SampleMode.Relative:
+                    npixels = ((float)count * m.Average) / density;
+                    break;
+            }
+            var aspect = (float)src.width / src.height;
+            var height = Mathf.CeilToInt(Mathf.Sqrt(npixels / aspect));
+            var size = new Vector2Int(Mathf.CeilToInt(height * aspect), height);
+
             GetColor color = (Vector2 uv) => {
                 var c = src.GetPixelBilinear(uv.x, uv.y);
-                return linear ? c.r : c.linear.r;
+                return linear ? c[(int)colorIndex]: c.linear[(int)colorIndex];
             };
-            return color.GenerateWithSize(size, density);
+
+            return new Generator(size, color.GenerateWithSize(size, density));
         }
         public static IEnumerable<(int x, int y)> GenerateWithSize(
             this GetColor color,
@@ -69,5 +93,23 @@ namespace ErrorDiffusionSamplerSys {
                 }
             }
         }
+        #endregion
+
+        #region definitions
+        public class Generator {
+            public Vector2Int size;
+            public IEnumerable<(int x, int y)> samples;
+
+            public Generator(Vector2Int size, IEnumerable<(int x, int y)> samples) {
+                this.size = size;
+                this.samples = samples;
+            }
+            public Generator() : this(Vector2Int.zero, NullSampler()) { }
+
+            public static IEnumerable<(int x, int y)> NullSampler() {
+                yield break;
+            }
+        }
+        #endregion
     }
 }

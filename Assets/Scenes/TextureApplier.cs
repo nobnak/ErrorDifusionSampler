@@ -6,6 +6,9 @@ public class TextureApplier : MonoBehaviour {
 
     public const string P_MainTex = "_MainTex";
 
+    [SerializeField]
+    protected Tuner tuner = new Tuner();
+
     protected Renderer rend;
 
     #region interface
@@ -16,7 +19,14 @@ public class TextureApplier : MonoBehaviour {
         rend?.SetPropertyBlock(blk);
 
         var s = transform.localScale;
-        s.x = s.y * tex.width / tex.height;
+        switch (tuner.stretch) {
+            default:
+                s.x = s.y * tex.width / tex.height;
+                break;
+            case StretchMode.Vertical:
+                s.y = s.x * tex.height / tex.width;
+                break;
+        }
         transform.localScale = s;
     }
     #endregion
@@ -24,6 +34,14 @@ public class TextureApplier : MonoBehaviour {
     #region unity
     private void OnEnable() {
         rend = GetComponent<Renderer>();
+    }
+    #endregion
+
+    #region definitions
+    public enum StretchMode { Horizontal = 0, Vertical }
+    [System.Serializable]
+    public class Tuner {
+        public StretchMode stretch;
     }
     #endregion
 }
